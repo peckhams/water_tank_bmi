@@ -5,19 +5,20 @@
 # a BMI-compliant version for a hands-on example.
 #
 # Show how to inherit BMI functions from BMI_base.py.
-#
+
 # Previous version info.
 # July 5-7, 2008
 # Modified: July 23, 2008  (S. Peckham)
 #    v = sqrt(2 * g * d))
-#
+
 # Modified: July 18, 2016  (S. Peckham)
 #    v = sqrt(g * d / 2) * (A_top / sqrt(A_top^2 - A_out^2))
 #    v ~ sqrt(g * d / 2), if A_top >> A_out
 #    This equation is computed for draining case from dh/dt
 #    (in the companion paper), after simplification.
 #
-# Modified: 2021-02-12 to support Python 3.0.
+# Modified: 2021-02-12 (S. Peckham)
+#    Minor changes to run in Python 3.*
 #
 #-----------------------------------------------------------------
 # 7/18/16.  Key equations
@@ -220,7 +221,7 @@ class water_tank:
             print('###################################################')
             print(' ERROR: Could not find attribute: ' + att_name)
             print('###################################################')
-            print(' ')
+            print()
 
     #   get_attribute()    
     #-------------------------------------------------------------------
@@ -418,8 +419,9 @@ class water_tank:
         self.Q_out  = Q_out
         self.volume = max(self.volume + dVol, 0.0)
         self.depth  = (self.volume / self.top_area)
-        self.out_speed = np.sqrt(self.g * self.depth / 2.0)
-
+        self.out_speed = np.sqrt(2.0 * self.g * self.depth)
+        ### self.out_speed = np.sqrt(self.g * self.depth / 2.0)
+        
         #-------------------------
         # Optional status report
         #-------------------------
@@ -451,7 +453,7 @@ class water_tank:
 ##        # the tank model's cfg_file.
 ##        #----------------------------------------------------
 ##        n_steps = np.int16(time / self.dt)
-##        for k in range(1,n_steps+1):
+##        for k in xrange(1,n_steps+1):
 ##            self.update()
 ##
 ##    #   update_until()
@@ -460,11 +462,27 @@ class water_tank:
 
         timer_stop = time.time()
         run_time = (timer_stop - self.timer_start)
-        
+
+        #-----------------------------------------        
+        # Report simulation time with good units
+        #-----------------------------------------
+        sim_time  = self.time  # [secs]
+        sim_units = ' [secs]'
+        #----------------------------------
+        if (sim_time > 3600 * 24):
+            sim_time = sim_time / (3600.0 * 24)
+            sim_units = ' [days]'
+        elif (sim_time > 3600):
+            sim_time = sim_time / 3600.0
+            sim_units = ' [hrs]'       
+        elif (sim_time > 60):
+            sim_time = sim_time / 60.0
+            sim_units = ' [mins]'
+
         print()
         print('Finished with water tank simulation.')
         print('Model run time =', run_time, ' [secs]')
-        print('Simulated time =', self.time, ' [secs]')
+        print('Simulated time =', sim_time, sim_units)
         print('Final depth    =', self.depth, ' [m]')
         print()
 
@@ -480,15 +498,15 @@ class water_tank:
         
     #   finalize()
     #------------------------------------------------------------ 
-    def run_model( self ):
+    def run_model( self, cfg_file=None):
 
         #-------------------------------------------------------
         # Note: This is not a required BMI function, but gives
         #       an easy way to run the stand-alone model.
         #-------------------------------------------------------
-        self.initialize()
+        self.initialize( cfg_file=cfg_file )
         for k in range(1, self.n_steps+1):
-            #print 'k =', k
+            # print('k =', k)
             self.update()
         self.finalize()
 
@@ -502,22 +520,6 @@ class water_tank:
 
         try:
             return getattr(self, var_name)
-
-            #---------------------------------
-            # If there's an error, return 0.
-            #---------------------------------
-            # return getattr(self, var_name, 0)
-            
-            #-----------------------------------
-            # Using exec works, but is slower.
-            #-----------------------------------
-            ## exec("result = self." + var_name)
-            ## return result
-
-            #------------------------------------
-            # This doesn't work as a one-liner.
-            #------------------------------------
-            ## exec("return self." + var_name)
 
             #----------------------------
             # This breaks the reference.
