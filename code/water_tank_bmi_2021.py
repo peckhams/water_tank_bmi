@@ -112,6 +112,7 @@
 #     read_cfg_file()
 #     update_rain()
 #     print_tank_data()
+#     read_rain_data()
 #
 #----------------------------------------------------------------
 
@@ -332,8 +333,9 @@ class water_tank:
     #------------------------------------------------------------ 
     def initialize( self, cfg_file=None ):
 
+        self.SERIALIZABLE = True
         self.timer_start = time.time()
-        
+
         #-------------------------------------------
         # Used in read_cfg_file(), so needed here.
         #-------------------------------------------
@@ -387,8 +389,12 @@ class water_tank:
             # print 'Predicted steady-state depth =', d_steady
         else:
             self.steady_rain = False
-            self.rain_file = model_input.input_file(self.rain_data_filename)       
-            self.rain_file.open()
+            if (self.SERIALIZABLE):
+                # Can use dill to serialize.
+                self.read_rain_data( self.rain_data_filename )
+            else:
+                self.rain_file = model_input.input_file(self.rain_data_filename)       
+                self.rain_file.open()
 
     #   initialize()
     #------------------------------------------------------------       
@@ -489,8 +495,9 @@ class water_tank:
         #-------------------
         # Close input file
         #-------------------
-        if not(self.steady_rain):
-            self.rain_file.close()
+        if not(self.SERIALIZABLE):
+           if not(self.steady_rain):
+              self.rain_file.close()
 
         #-----------------------        
         # Close output files ?
@@ -581,10 +588,16 @@ class water_tank:
     #------------------------------------------------------------
     def update_rain( self ):
 
-        if (self.time_index < self.rain_file.n_lines):
-            record = self.rain_file.read_record()
-            self.rain_rate     = record[0]   ## (in mmph)
-            self.rain_duration = record[1]   ## (in seconds)
+        ## if (self.time_index < self.rain_file.n_lines):
+        if (self.time_index < self.n_rain_lines):
+            if (self.SERIALIZABLE):
+                self.rain_rate     = self.rates[ self.time_index ]
+                self.rain_duration = self.durations[ self.time_index ]
+            else:
+                record = self.rain_file.read_record()           
+                self.rain_rate     = record[0]   ## (in mmph)
+                self.rain_duration = record[1]   ## (in seconds)
+            #---------------------------------------------------------
             ## print 'rain_rate =', self.rain_rate
             ## print 'duration  =', self.rain_duration
             ## print ' '
@@ -610,6 +623,40 @@ class water_tank:
         print()
 
     #   print_tank_data()
+    #------------------------------------------------------------
+    def read_rain_data(self, filename='rain_data.txt'):
+        
+        #------------------------------------------
+        # Parts of this probably belong in methods
+        # for a "text_file" class, e.g. n_lines
+        #------------------------------------------
+        try: f = open(filename, 'r')
+        except IOError as err:
+            errno, strerror = err.args
+            print('I/O error(%s): %s' % (errno, strerror))
+            return
+        
+        n_lines = 0
+        for line in f:
+            #-------------------------------------
+            # Note: len(line) == 1 for null lines
+            #-------------------------------------
+            if (len(line.strip()) > 0): n_lines = (n_lines + 1)
+        self.n_rain_lines  = n_lines
+        self.rates     = np.zeros([n_lines], dtype='d')
+        self.durations = np.zeros([n_lines], dtype='d')
+        
+        f.seek(0)
+        k = 0
+        for line in f:
+            words = line.split()
+            if (len(words) > 1):
+                self.rates[k]     = np.float64(words[0])
+                self.durations[k] = np.float64(words[1])
+                k = (k + 1)
+        f.close()
+
+    #   read_rain_data()
     #------------------------------------------------------------
         
       
